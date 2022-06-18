@@ -6,9 +6,10 @@
 #include <windows.h>
 #include <string>
 #include <vector>
+#include <sstream>
 
 /*
-    struct for storing information
+    struct for storing informations
     about keyboard layout
 */
 struct LayoutInfo {
@@ -18,7 +19,54 @@ struct LayoutInfo {
 
 HWND hwnd;
 
-std::vector<LayoutInfo> getAllLayouts()
+// https://docs.microsoft.com/en-us/windows/win32/sysinfo/registry-functions
+void matchLayoutData(std::vector<std::wstring> codes)
+{
+    HKEY hkey;
+    LSTATUS result = RegOpenKeyExW(
+        HKEY_LOCAL_MACHINE,
+        L"SYSTEM\\CurrentControlSet\\Control\\Keyboard Layouts",
+        0,
+        KEY_ENUMERATE_SUB_KEYS | KEY_QUERY_VALUE,
+        &hkey
+    );
+
+    if (result != ERROR_SUCCESS) {
+        MessageBox(hwnd, L"Error while attetmpting to open registry", L"Error", MB_OK);
+        return;
+    }
+
+    for (std::vector<std::wstring>::const_iterator i = codes.begin(); i < codes.end(); i++) {
+        DWORD length = 255;
+
+        wchar_t data[length];
+
+        result = RegGetValueW(
+            hkey,
+            i->c_str(),
+            L"Layout Text",
+            RRF_RT_REG_SZ,
+            NULL,
+            data,
+            &length
+        );
+
+        if (result != ERROR_SUCCESS) {
+            MessageBox(hwnd, L"Failed to read value", L"Error", MB_OK);
+            return;
+        }
+
+        std::wstring str(*i);
+        str += L": ";
+        str += data;
+
+        MessageBox(hwnd, str.c_str(), L"regisry", MB_OK);
+
+        // todo: make a vector of layout info and return
+    }
+}
+
+void getAllAvailableLayouts()
 {
     int size = GetKeyboardLayoutList(0, nullptr);
     HKL list[size];
@@ -26,10 +74,32 @@ std::vector<LayoutInfo> getAllLayouts()
     if (GetKeyboardLayoutList(size, list) <= 0) {
         MessageBox(hwnd, L"Failed to query available keyboard layouts", L"Error", MB_OK);
     }
+
+    std::vector<std::wstring> codes;
     
     for (int i = 0; i < size; i++) {
+        HKL current = list[i];
         
+        uint64_t *data = reinterpret_cast<uint64_t*>(&current);
+        
+        uint32_t code = *data >> 16;
+
+        std::stringstream stream;
+        stream << std::hex << code;
+        std::string result(stream.str());
+        
+        std::wstring str(result.begin(), result.end());
+
+        int length = str.length();
+
+        for (int j = 0; j < 8 - length; j++) {
+            str = L"0" + str;
+        }
+
+        codes.push_back(str);
     }
+
+    matchLayoutData(codes);
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -97,6 +167,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     Shell_NotifyIconW(NIM_ADD, &nid);
     
     std::vector<LayoutInfo> activeLayouts;
+    
+    getAllAvailableLayouts();
     
     MSG msg = {};
     while(GetMessage(&msg, NULL, 0, 0) > 0) {
