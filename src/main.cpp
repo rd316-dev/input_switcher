@@ -9,31 +9,71 @@
 #include <sstream>
 
 /*
-    struct for storing informations
-    about keyboard layout
+struct for storing informations
+about keyboard layout
 */
 struct LayoutInfo {
-    WCHAR layoutName;
-    WCHAR layoutCode;
+    std::wstring layoutName;
+    std::wstring layoutCode;
 };
 
 HWND hwnd;
 
-// https://docs.microsoft.com/en-us/windows/win32/sysinfo/registry-functions
-void matchLayoutData(std::vector<std::wstring> codes)
+std::vector<std::wstring> getAllAvailableLayouts()
+{
+    int size = GetKeyboardLayoutList(0, nullptr);
+    HKL list[size];
+
+    std::vector<std::wstring> codes;
+    
+    if (GetKeyboardLayoutList(size, list) <= 0) {
+        MessageBox(hwnd, L"Failed to query available keyboard layouts", L"Error", MB_OK);
+        return codes;
+    }
+    
+    for (int i = 0; i < size; i++) {
+        HKL current = list[i];
+        
+        uint64_t *data = reinterpret_cast<uint64_t*>(&current);
+        
+        uint32_t code = *data >> 16;
+
+        std::stringstream stream;
+        stream << std::hex << code;
+        std::string result(stream.str());
+        
+        std::wstring str(result.begin(), result.end());
+
+        // add leading zeroes to string
+        int length = str.length();
+        for (int j = 0; j < 8 - length; j++) {
+            str = L"0" + str;
+        }
+
+        codes.push_back(str);
+    }
+
+    return codes;
+}
+
+/*
+https://docs.microsoft.com/en-us/windows/win32/sysinfo/registry-functions
+matches layout codes with their names in registry
+*/
+std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> codes)
 {
     HKEY hkey;
     LSTATUS result = RegOpenKeyExW(
         HKEY_LOCAL_MACHINE,
         L"SYSTEM\\CurrentControlSet\\Control\\Keyboard Layouts",
-        0,
-        KEY_ENUMERATE_SUB_KEYS | KEY_QUERY_VALUE,
-        &hkey
+        0, KEY_ENUMERATE_SUB_KEYS | KEY_QUERY_VALUE, &hkey
     );
+
+    std::vector<LayoutInfo> matched;
 
     if (result != ERROR_SUCCESS) {
         MessageBox(hwnd, L"Error while attetmpting to open registry", L"Error", MB_OK);
-        return;
+        return matched;
     }
 
     for (std::vector<std::wstring>::const_iterator i = codes.begin(); i < codes.end(); i++) {
@@ -51,55 +91,20 @@ void matchLayoutData(std::vector<std::wstring> codes)
             &length
         );
 
+        LayoutInfo info = {};
+        info.layoutCode = *i;
+
         if (result != ERROR_SUCCESS) {
             MessageBox(hwnd, L"Failed to read value", L"Error", MB_OK);
-            return;
+            info.layoutName = std::wstring(L"Unknown Layout");
+        } else {
+            info.layoutName = std::wstring(data);
         }
 
-        std::wstring str(*i);
-        str += L": ";
-        str += data;
-
-        MessageBox(hwnd, str.c_str(), L"regisry", MB_OK);
-
-        // todo: make a vector of layout info and return
-    }
-}
-
-void getAllAvailableLayouts()
-{
-    int size = GetKeyboardLayoutList(0, nullptr);
-    HKL list[size];
-    
-    if (GetKeyboardLayoutList(size, list) <= 0) {
-        MessageBox(hwnd, L"Failed to query available keyboard layouts", L"Error", MB_OK);
+        matched.push_back(info);
     }
 
-    std::vector<std::wstring> codes;
-    
-    for (int i = 0; i < size; i++) {
-        HKL current = list[i];
-        
-        uint64_t *data = reinterpret_cast<uint64_t*>(&current);
-        
-        uint32_t code = *data >> 16;
-
-        std::stringstream stream;
-        stream << std::hex << code;
-        std::string result(stream.str());
-        
-        std::wstring str(result.begin(), result.end());
-
-        int length = str.length();
-
-        for (int j = 0; j < 8 - length; j++) {
-            str = L"0" + str;
-        }
-
-        codes.push_back(str);
-    }
-
-    matchLayoutData(codes);
+    return matched;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -120,11 +125,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     int screenWidth = GetSystemMetrics(SM_CXMAXIMIZED);
     int screenHeight = GetSystemMetrics(SM_CYMAXIMIZED);
     
-    int windowWidth = 200;
-    int windowHeight = 200;
+    int windowWidth = 400;
+    int windowHeight = 400;
     
     int startX = (screenWidth - windowWidth) / 2;
     int startY = (screenHeight - windowHeight) / 2;
+
+    int margin = 20;
     
     hwnd = CreateWindowEx(
         0,
@@ -144,6 +151,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         MessageBox(NULL, L"Couldn't create window", L"Error", MB_OK);
         return -1;
     }
+
+    CreateWindow(WC_LISTVIEW, "",
+        WS_CHILD | LVS_LISTs,
+        margin, margin,
+        windowWidth - (margin * 2),
+        windowHeight - (margin * 2),
+        hwnd, (HMENU)hInstance, GetModuleHandle(NULL), NULL);
     
     // register hot key for CapsLock
     // todo: make the key configurable
@@ -168,30 +182,34 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     
     std::vector<LayoutInfo> activeLayouts;
     
-    getAllAvailableLayouts();
+    std::vector<std::wstring> codes = getAllAvailableLayouts();
+    std::vector<LayoutInfo> layouts = matchLayoutData(codes);
     
     MSG msg = {};
     while(GetMessage(&msg, NULL, 0, 0) > 0) {
         if (msg.message == WM_HOTKEY) {
             HWND current = GetForegroundWindow();
             
-            wchar_t name[8];
-            GetKeyboardLayoutNameW(name);
-            
-            // ru: 00000419
-            // en: 00000409
-            // jp: 00000411
-            
-            std::wstring nameStr(name);
+            wchar_t code[8];
+            GetKeyboardLayoutNameW(code);            
             
             HKL hkl;
-            if (nameStr.compare(std::wstring(L"00000411")) == 0) {
-                hkl = LoadKeyboardLayout(L"00000419", KLF_ACTIVATE);
-            } else if (nameStr.compare(std::wstring(L"00000419")) == 0) {
-                hkl = LoadKeyboardLayout(L"00000411", KLF_ACTIVATE);
-            } else {
-                hkl = LoadKeyboardLayout(L"00000411", KLF_ACTIVATE);
+
+            // find current layout
+            int index = 0;
+            for (int i = 0; i != layouts.size(); i++) {
+                if (layouts[i].layoutCode == code) {
+                    index = i + 1;
+                    break;
+                }
             }
+
+            if (index >= layouts.size()) {
+                index = 0;
+            }
+
+            // change to next layout
+            hkl = LoadKeyboardLayout(layouts[index].layoutCode.c_str(), KLF_ACTIVATE);
             
             PostMessageW(
                 current,
