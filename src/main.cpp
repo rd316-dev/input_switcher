@@ -151,13 +151,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         MessageBox(NULL, L"Couldn't create window", L"Error", MB_OK);
         return -1;
     }
-
-    CreateWindow(WC_LISTVIEW, "",
-        WS_CHILD | LVS_LISTs,
-        margin, margin,
-        windowWidth - (margin * 2),
-        windowHeight - (margin * 2),
-        hwnd, (HMENU)hInstance, GetModuleHandle(NULL), NULL);
     
     // register hot key for CapsLock
     // todo: make the key configurable
