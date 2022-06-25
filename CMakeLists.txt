@@ -2,15 +2,11 @@
 project(input_switcher)
 set(CMAKE_CXX_STANDARD 17)
 
-#add_compile_options("$<$<C_COMPILER_ID:mingw>:/utf-8>")
-#add_compile_options("$<$<CXX_COMPILER_ID:mingw>:/utf-8>")
-
-#set(WIN32 True)
-
-include_directories("src/")
-
 set(SOURCE_FILES
     "src/main.cpp"
 )
 
 add_executable(input_switcher WIN32 ${SOURCE_FILES})
+
+target_include_directories(input_switcher PRIVATE "src/")
+target_link_libraries(input_switcher "uxtheme.lib" "-static-libgcc" "-static-libstdc++")
