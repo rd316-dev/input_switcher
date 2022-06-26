@@ -20,6 +20,13 @@ struct LayoutInfo {
     std::wstring layoutCode;
 };
 
+struct Dimensions {
+    int startX;
+    int startY;
+    int width;
+    int height;
+};
+
 HWND hwnd;
 
 
@@ -56,14 +63,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     // place window at the center of screen
     int screenWidth = GetSystemMetrics(SM_CXMAXIMIZED);
     int screenHeight = GetSystemMetrics(SM_CYMAXIMIZED);
-    
-    int windowWidth = 400;
-    int windowHeight = 400;
-    
-    int startX = (screenWidth - windowWidth) / 2;
-    int startY = (screenHeight - windowHeight) / 2;
 
-    int margin = 20;
+    Dimensions windowDimensions;
+    windowDimensions.width = 400;
+    windowDimensions.height = 400;
+    windowDimensions.startX = (screenWidth - windowDimensions.width) / 2;
+    windowDimensions.startY = (screenHeight - windowDimensions.height) / 2;
     
     hwnd = CreateWindowEx(
         0,
@@ -71,7 +76,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         L"Input Switcher",
         WS_OVERLAPPEDWINDOW,
         
-        startX, startY, windowWidth, windowHeight,
+        windowDimensions.startX, windowDimensions.startY, 
+        windowDimensions.width, windowDimensions.height,
 
         NULL, NULL, hInstance, NULL
     );
@@ -80,6 +86,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         MessageBox(NULL, L"Couldn't create window", L"Error", MB_OK);
         return -1;
     }
+
+    // create gui
+    int margin = 20;
 
     RECT rect;
     if (GetClientRect(hwnd, &rect) == FALSE) {
@@ -90,19 +99,81 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     int clientWidth = rect.right;
     int clientHeight = rect.bottom;
 
-    // add a ListBox.
-    HWND hListBox = CreateWindowExW(
+    // create button in client's centers
+    // todo: replace letters in buttons with icons
+    Dimensions buttonDimensions;
+    buttonDimensions.width = 40;
+    buttonDimensions.height = 40;
+    buttonDimensions.startX = (clientWidth - buttonDimensions.width) / 2;
+    buttonDimensions.startY = (clientHeight / 2) - margin - buttonDimensions.height;
+
+    HWND hButtonRight = CreateWindowExW(
+        0,
+        L"BUTTON", L"R",
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+
+        buttonDimensions.startX, buttonDimensions.startY,
+        buttonDimensions.width, buttonDimensions.height,
+
+        hwnd, NULL, hInstance, NULL
+    );
+
+    buttonDimensions.startY = (clientHeight / 2) + margin;
+
+    HWND hButtonLeft = CreateWindowExW(
+        0,
+        L"BUTTON", L"L",
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+
+        buttonDimensions.startX, buttonDimensions.startY,
+        buttonDimensions.width, buttonDimensions.height,
+
+        hwnd, NULL, hInstance, NULL
+    );
+
+    // ListBox for available layouts
+    Dimensions availableListDimensions;
+    availableListDimensions.startX = margin;
+    availableListDimensions.startY = margin;
+    availableListDimensions.width = ((clientWidth - buttonDimensions.width) / 2)  - (margin * 2);
+    availableListDimensions.height = clientHeight - (margin * 2);
+
+    HWND hListBoxAvailablle = CreateWindowExW(
         WS_EX_CLIENTEDGE,
         L"LISTBOX", NULL,
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL,
 
-        margin, margin, clientWidth - (margin * 2), clientHeight - (margin * 2),
+        availableListDimensions.startX, availableListDimensions.startY,
+        availableListDimensions.width, availableListDimensions.height,
 
         hwnd, NULL, hInstance, NULL
     );
     
-    if (hListBox == NULL) {
-        MessageBox(NULL, L"Couldn't create ListBox", L"Error", MB_OK);
+    if (hListBoxAvailablle == NULL) {
+        MessageBox(hwnd, L"Couldn't create ListBox", L"Error", MB_OK);
+        return -1;
+    }
+
+    // ListBox for active layouts
+    Dimensions activeListDimensions;
+    activeListDimensions.startX = (margin * 3) + availableListDimensions.width + buttonDimensions.width;
+    activeListDimensions.startY = margin;
+    activeListDimensions.width = ((clientWidth - buttonDimensions.width) / 2)  - (margin * 2);
+    activeListDimensions.height = clientHeight - (margin * 2);
+
+    HWND hListBoxActive = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"LISTBOX", NULL,
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL,
+
+        activeListDimensions.startX, activeListDimensions.startY,
+        activeListDimensions.width, activeListDimensions.height,
+
+        hwnd, NULL, hInstance, NULL
+    );
+    
+    if (hListBoxActive == NULL) {
+        MessageBox(hwnd, L"Couldn't create ListBox", L"Error", MB_OK);
         return -1;
     }
 
@@ -138,9 +209,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
     // fill list with names of layouts
     for (int i = 0; i < layouts.size(); i++) {
-        int pos = (int) SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM) layouts[i].layoutName.c_str());
+        int pos = (int) SendMessage(hListBoxActive, LB_ADDSTRING, 0, (LPARAM) layouts[i].layoutName.c_str());
 
-        SendMessage(hListBox, LB_SETITEMDATA, i, (LPARAM) i);
+        //SendMessage(hListBoxActive, LB_SETITEMDATA, i, (LPARAM) i);
     }
     
     MSG msg = {};
