@@ -65,7 +65,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     int screenHeight = GetSystemMetrics(SM_CYMAXIMIZED);
 
     Dimensions windowDimensions;
-    windowDimensions.width = 400;
+    windowDimensions.width = 500;
     windowDimensions.height = 400;
     windowDimensions.startX = (screenWidth - windowDimensions.width) / 2;
     windowDimensions.startY = (screenHeight - windowDimensions.height) / 2;
@@ -99,7 +99,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     int clientWidth = rect.right;
     int clientHeight = rect.bottom;
 
-    // create button in client's centers
+    // place buttons at the center of window
     // todo: replace letters in buttons with icons
     Dimensions buttonDimensions;
     buttonDimensions.width = 40;
@@ -131,12 +131,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         hwnd, NULL, hInstance, NULL
     );
 
+    int labelHeight = 20;
+
     // ListBox for available layouts
+    // place at the left side of window
     Dimensions availableListDimensions;
     availableListDimensions.startX = margin;
-    availableListDimensions.startY = margin;
+    availableListDimensions.startY = margin + labelHeight;
     availableListDimensions.width = ((clientWidth - buttonDimensions.width) / 2)  - (margin * 2);
-    availableListDimensions.height = clientHeight - (margin * 2);
+    availableListDimensions.height = clientHeight - (margin * 2) - labelHeight;
 
     HWND hListBoxAvailablle = CreateWindowExW(
         WS_EX_CLIENTEDGE,
@@ -154,12 +157,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         return -1;
     }
 
+    HWND hTextAvailable = CreateWindowW(
+        L"STATIC", 
+        L"Available Layouts", 
+        WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP, 
+        availableListDimensions.startX, availableListDimensions.startY - labelHeight,
+        availableListDimensions.width, labelHeight,
+
+        hwnd, NULL, hInstance, NULL
+    );
+
+    if (hTextAvailable == NULL) {
+        MessageBox(hwnd, L"Couldn't create text label", L"Error", MB_OK);
+        return -1;
+    }
+
     // ListBox for active layouts
+    // place at the right side of window
     Dimensions activeListDimensions;
     activeListDimensions.startX = (margin * 3) + availableListDimensions.width + buttonDimensions.width;
-    activeListDimensions.startY = margin;
+    activeListDimensions.startY = margin + labelHeight;
     activeListDimensions.width = ((clientWidth - buttonDimensions.width) / 2)  - (margin * 2);
-    activeListDimensions.height = clientHeight - (margin * 2);
+    activeListDimensions.height = clientHeight - (margin * 2) - labelHeight;
 
     HWND hListBoxActive = CreateWindowExW(
         WS_EX_CLIENTEDGE,
@@ -174,6 +193,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     
     if (hListBoxActive == NULL) {
         MessageBox(hwnd, L"Couldn't create ListBox", L"Error", MB_OK);
+        return -1;
+    }
+
+    HWND hTextActive = CreateWindowW(
+        L"STATIC", 
+        L"Active Layouts", 
+        WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP, 
+        activeListDimensions.startX, activeListDimensions.startY - labelHeight,
+        activeListDimensions.width, labelHeight,
+
+        hwnd, NULL, hInstance, NULL
+    );
+
+    if (hTextActive == NULL) {
+        MessageBox(hwnd, L"Couldn't create text label", L"Error", MB_OK);
         return -1;
     }
 
@@ -284,7 +318,6 @@ std::vector<std::wstring> getAllAvailableLayouts()
 
     return codes;
 }
-
 
 /*
 https://docs.microsoft.com/en-us/windows/win32/sysinfo/registry-functions
