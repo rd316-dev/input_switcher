@@ -29,6 +29,10 @@ struct Dimensions {
 
 HWND hwnd;
 
+HWND hButtonRight;
+HWND hButtonLeft;
+HWND hListBoxAvailable;
+HWND hListBoxActive;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -56,8 +60,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     if (GetThemeSysFont(NULL, 0, &font) == FALSE) {
         MessageBox(NULL, L"Couldn't get system font", L"Error", MB_OK);
         return -1;
-    } else {
-        MessageBox(NULL, font.lfFaceName, L"Success", MB_OK);
     }
     
     // place window at the center of screen
@@ -107,7 +109,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     buttonDimensions.startX = (clientWidth - buttonDimensions.width) / 2;
     buttonDimensions.startY = (clientHeight / 2) - margin - buttonDimensions.height;
 
-    HWND hButtonRight = CreateWindowExW(
+    hButtonRight = CreateWindowExW(
         0,
         L"BUTTON", L"R",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
@@ -118,9 +120,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         hwnd, NULL, hInstance, NULL
     );
 
+    EnableWindow(hButtonRight, false);
+
     buttonDimensions.startY = (clientHeight / 2) + margin;
 
-    HWND hButtonLeft = CreateWindowExW(
+    hButtonLeft = CreateWindowExW(
         0,
         L"BUTTON", L"L",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
@@ -130,6 +134,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
         hwnd, NULL, hInstance, NULL
     );
+
+    EnableWindow(hButtonLeft, false);
+
 
     int labelHeight = 20;
 
@@ -141,10 +148,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     availableListDimensions.width = ((clientWidth - buttonDimensions.width) / 2)  - (margin * 2);
     availableListDimensions.height = clientHeight - (margin * 2) - labelHeight;
 
-    HWND hListBoxAvailablle = CreateWindowExW(
+    hListBoxAvailable = CreateWindowExW(
         WS_EX_CLIENTEDGE,
         L"LISTBOX", NULL,
-        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL,
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL | LBS_NOTIFY,
 
         availableListDimensions.startX, availableListDimensions.startY,
         availableListDimensions.width, availableListDimensions.height,
@@ -152,7 +159,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         hwnd, NULL, hInstance, NULL
     );
     
-    if (hListBoxAvailablle == NULL) {
+    if (hListBoxAvailable == NULL) {
         MessageBox(hwnd, L"Couldn't create ListBox", L"Error", MB_OK);
         return -1;
     }
@@ -180,10 +187,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     activeListDimensions.width = ((clientWidth - buttonDimensions.width) / 2)  - (margin * 2);
     activeListDimensions.height = clientHeight - (margin * 2) - labelHeight;
 
-    HWND hListBoxActive = CreateWindowExW(
+    hListBoxActive = CreateWindowExW(
         WS_EX_CLIENTEDGE,
         L"LISTBOX", NULL,
-        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL,
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL | LBS_NOTIFY,
 
         activeListDimensions.startX, activeListDimensions.startY,
         activeListDimensions.width, activeListDimensions.height,
@@ -265,19 +272,46 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    switch(uMsg) {
-    case WM_DESTROY:
+    if (uMsg == WM_DESTROY) {
         PostQuitMessage(0);
         return 0;
-    case WM_PAINT:
+    } else if (uMsg == WM_PAINT) {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        FillRect(hdc, &ps.rcPaint, (HBRUSH) (COLOR_WINDOW));
+        FillRect(hdc, &ps.rcPaint, HBRUSH(COLOR_WINDOW));
         
         EndPaint(hwnd, &ps);
         
         return 0;
-    }
+    } else if (uMsg == WM_COMMAND) {
+        if (lParam != 0) {
+            HWND windowHandle = HWND(lParam);
+            int command = HIWORD(wParam);
+
+            if (windowHandle == hListBoxActive) {
+                if (command == LBN_SELCHANGE) {
+                    /*int index = SendMessageW(windowHandle, LB_GETCURSEL, 0, 0);
+                    int length = SendMessageW(windowHandle, LB_GETTEXTLEN, index, 0);
+                    wchar_t text[length];
+
+                    SendMessageW(windowHandle, LB_GETTEXT, index, LPARAM(LPTSTR(text)));
+
+                    MessageBox(hwnd, text, L"Result", MB_OK);*/
+                    EnableWindow(hButtonLeft, true);
+                } else if (command == LBN_SELCANCEL) {
+                    EnableWindow(hButtonLeft, false);
+                }
+            } else if (windowHandle == hListBoxAvailable) {
+                if (command == LBN_SELCHANGE) {
+                    EnableWindow(hButtonRight, true);
+                } else if (command == LBN_SELCANCEL) {
+                    EnableWindow(hButtonRight, false);
+                }
+            }
+
+            return 0;
+        }
+    } 
     
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
