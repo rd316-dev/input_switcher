@@ -58,12 +58,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     
     RegisterClass(&wc);
 
-    LOGFONT font;
+    NONCLIENTMETRICSW metrics;
+    metrics.cbSize = sizeof(NONCLIENTMETRICS);
 
-    if (GetThemeSysFont(NULL, 0, &font) == FALSE) {
-        MessageBox(NULL, L"Couldn't get system font", L"Error", MB_OK);
+    BOOL result = SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), PVOID(&metrics), 0);
+
+    if (result == FALSE) {
+        MessageBox(NULL, L"Couldn't get nonclient metrics", L"Error", MB_OK);
         return -1;
     }
+
+    LOGFONTW captionFontData = metrics.lfCaptionFont;
+
+    HFONT captionFont = CreateFontIndirectW(&captionFontData);
     
     // place window at the center of screen
     int screenWidth = GetSystemMetrics(SM_CXMAXIMIZED);
@@ -139,7 +146,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     );
 
     EnableWindow(hButtonLeft, false);
-
 
     int labelHeight = 20;
 
@@ -220,6 +226,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         MessageBox(hWindow, L"Couldn't create text label", L"Error", MB_OK);
         return -1;
     }
+
+    SendMessageW(hWindow, WM_SETFONT, WPARAM(captionFont), TRUE);
+
+    SendMessageW(hTextAvailable, WM_SETFONT, WPARAM(captionFont), TRUE);
+    SendMessageW(hTextActive, WM_SETFONT, WPARAM(captionFont), TRUE);
+
+    SendMessageW(hListBoxAvailable, WM_SETFONT, WPARAM(captionFont), TRUE);
+    SendMessageW(hListBoxActive, WM_SETFONT, WPARAM(captionFont), TRUE);
+
+    SendMessageW(hButtonRight, WM_SETFONT, WPARAM(captionFont), TRUE);
+    SendMessageW(hButtonLeft, WM_SETFONT, WPARAM(captionFont), TRUE);
 
     // register hot key for CapsLock
     // todo: make the key configurable
