@@ -11,10 +11,6 @@
 #include <sstream>
 
 
-/*
-struct for storing informations
-about keyboard layout
-*/
 struct LayoutInfo {
     std::wstring layoutName;
     std::wstring layoutCode;
@@ -27,12 +23,16 @@ struct Dimensions {
     int height;
 };
 
-HWND hwnd;
+HWND hWindow;
 
 HWND hButtonRight;
 HWND hButtonLeft;
 HWND hListBoxAvailable;
 HWND hListBoxActive;
+
+std::vector<LayoutInfo> layouts;
+std::vector<LayoutInfo> activeLayouts;
+
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -40,8 +40,11 @@ std::vector<std::wstring> getAllAvailableLayouts();
 
 std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes);
 
-void handleHotKey(std::vector<LayoutInfo> &layouts);
+void onHotKey();
 
+bool onCommand(HWND windowHandle, int command);
+
+void refreshActiveList();
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nCmdShow)
 {
@@ -72,7 +75,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     windowDimensions.startX = (screenWidth - windowDimensions.width) / 2;
     windowDimensions.startY = (screenHeight - windowDimensions.height) / 2;
     
-    hwnd = CreateWindowEx(
+    hWindow = CreateWindowEx(
         0,
         CLASS_NAME,
         L"Input Switcher",
@@ -84,7 +87,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         NULL, NULL, hInstance, NULL
     );
     
-    if (hwnd == NULL) {
+    if (hWindow == NULL) {
         MessageBox(NULL, L"Couldn't create window", L"Error", MB_OK);
         return -1;
     }
@@ -93,7 +96,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     int margin = 20;
 
     RECT rect;
-    if (GetClientRect(hwnd, &rect) == FALSE) {
+    if (GetClientRect(hWindow, &rect) == FALSE) {
         MessageBox(NULL, L"Couldn't get client bounds", L"Error", MB_OK);
         return -1;
     }
@@ -117,7 +120,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         buttonDimensions.startX, buttonDimensions.startY,
         buttonDimensions.width, buttonDimensions.height,
 
-        hwnd, NULL, hInstance, NULL
+        hWindow, NULL, hInstance, NULL
     );
 
     EnableWindow(hButtonRight, false);
@@ -132,7 +135,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         buttonDimensions.startX, buttonDimensions.startY,
         buttonDimensions.width, buttonDimensions.height,
 
-        hwnd, NULL, hInstance, NULL
+        hWindow, NULL, hInstance, NULL
     );
 
     EnableWindow(hButtonLeft, false);
@@ -156,11 +159,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         availableListDimensions.startX, availableListDimensions.startY,
         availableListDimensions.width, availableListDimensions.height,
 
-        hwnd, NULL, hInstance, NULL
+        hWindow, NULL, hInstance, NULL
     );
     
     if (hListBoxAvailable == NULL) {
-        MessageBox(hwnd, L"Couldn't create ListBox", L"Error", MB_OK);
+        MessageBox(hWindow, L"Couldn't create ListBox", L"Error", MB_OK);
         return -1;
     }
 
@@ -171,11 +174,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         availableListDimensions.startX, availableListDimensions.startY - labelHeight,
         availableListDimensions.width, labelHeight,
 
-        hwnd, NULL, hInstance, NULL
+        hWindow, NULL, hInstance, NULL
     );
 
     if (hTextAvailable == NULL) {
-        MessageBox(hwnd, L"Couldn't create text label", L"Error", MB_OK);
+        MessageBox(hWindow, L"Couldn't create text label", L"Error", MB_OK);
         return -1;
     }
 
@@ -195,11 +198,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         activeListDimensions.startX, activeListDimensions.startY,
         activeListDimensions.width, activeListDimensions.height,
 
-        hwnd, NULL, hInstance, NULL
+        hWindow, NULL, hInstance, NULL
     );
     
     if (hListBoxActive == NULL) {
-        MessageBox(hwnd, L"Couldn't create ListBox", L"Error", MB_OK);
+        MessageBox(hWindow, L"Couldn't create ListBox", L"Error", MB_OK);
         return -1;
     }
 
@@ -210,55 +213,55 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         activeListDimensions.startX, activeListDimensions.startY - labelHeight,
         activeListDimensions.width, labelHeight,
 
-        hwnd, NULL, hInstance, NULL
+        hWindow, NULL, hInstance, NULL
     );
 
     if (hTextActive == NULL) {
-        MessageBox(hwnd, L"Couldn't create text label", L"Error", MB_OK);
+        MessageBox(hWindow, L"Couldn't create text label", L"Error", MB_OK);
         return -1;
     }
 
     // register hot key for CapsLock
     // todo: make the key configurable
-    if (!RegisterHotKey(hwnd, 0, 0, VK_CAPITAL)) {
+    if (!RegisterHotKey(hWindow, 0, 0, VK_CAPITAL)) {
         MessageBox(NULL, L"Couldn't regiser hot key", L"Error", MB_OK);
         return -1;
     }
 
-    ShowWindow(hwnd, nCmdShow);
+    ShowWindow(hWindow, nCmdShow);
     
     // setup tray icon
     // uses default Windows information icon
     // todo: make a proper icon
     NOTIFYICONDATAW nid = {};
     nid.cbSize = sizeof(NOTIFYICONDATAW);
-    nid.hWnd = hwnd;
+    nid.hWnd = hWindow;
     nid.uID = 0x10;
     nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE;
     nid.hIcon = LoadIcon(NULL, IDI_INFORMATION);
     
     Shell_NotifyIconW(NIM_ADD, &nid);
     
-    std::vector<LayoutInfo> activeLayouts;
-    
     std::vector<std::wstring> codes = getAllAvailableLayouts();
-    std::vector<LayoutInfo> layouts = matchLayoutData(codes);
+    layouts = matchLayoutData(codes);
+
+    activeLayouts = layouts;
 
     if (layouts.size() <= 0) {
-        MessageBox(hwnd, L"Couldn't find any keyboard layouts", L"Warning", MB_OK);
+        MessageBox(hWindow, L"Couldn't find any keyboard layouts", L"Warning", MB_OK);
     }
 
     // fill list with names of layouts
     for (int i = 0; i < layouts.size(); i++) {
         int pos = (int) SendMessage(hListBoxActive, LB_ADDSTRING, 0, (LPARAM) layouts[i].layoutName.c_str());
 
-        //SendMessage(hListBoxActive, LB_SETITEMDATA, i, (LPARAM) i);
+        SendMessage(hListBoxActive, LB_SETITEMDATA, pos, (LPARAM) &(layouts[i].layoutCode));
     }
     
     MSG msg = {};
     while(GetMessage(&msg, NULL, 0, 0) > 0) {
         if (msg.message == WM_HOTKEY) {
-            handleHotKey(layouts);
+            onHotKey();
         } else {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
@@ -288,28 +291,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             HWND windowHandle = HWND(lParam);
             int command = HIWORD(wParam);
 
-            if (windowHandle == hListBoxActive) {
-                if (command == LBN_SELCHANGE) {
-                    /*int index = SendMessageW(windowHandle, LB_GETCURSEL, 0, 0);
-                    int length = SendMessageW(windowHandle, LB_GETTEXTLEN, index, 0);
-                    wchar_t text[length];
-
-                    SendMessageW(windowHandle, LB_GETTEXT, index, LPARAM(LPTSTR(text)));
-
-                    MessageBox(hwnd, text, L"Result", MB_OK);*/
-                    EnableWindow(hButtonLeft, true);
-                } else if (command == LBN_SELCANCEL) {
-                    EnableWindow(hButtonLeft, false);
-                }
-            } else if (windowHandle == hListBoxAvailable) {
-                if (command == LBN_SELCHANGE) {
-                    EnableWindow(hButtonRight, true);
-                } else if (command == LBN_SELCANCEL) {
-                    EnableWindow(hButtonRight, false);
-                }
+            if (onCommand(windowHandle, command)) {
+                return 0;
             }
-
-            return 0;
         }
     } 
     
@@ -324,7 +308,7 @@ std::vector<std::wstring> getAllAvailableLayouts()
     std::vector<std::wstring> codes;
     
     if (GetKeyboardLayoutList(size, list) <= 0) {
-        MessageBox(hwnd, L"Failed to query available keyboard layouts", L"Error", MB_OK);
+        MessageBox(hWindow, L"Failed to query available keyboard layouts", L"Error", MB_OK);
         return codes;
     }
     
@@ -369,7 +353,7 @@ std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
     std::vector<LayoutInfo> matched;
 
     if (result != ERROR_SUCCESS) {
-        MessageBox(hwnd, L"Error while attetmpting to open registry", L"Error", MB_OK);
+        MessageBox(hWindow, L"Error while attetmpting to open registry", L"Error", MB_OK);
         return matched;
     }
 
@@ -392,7 +376,7 @@ std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
         info.layoutCode = *i;
 
         if (result != ERROR_SUCCESS) {
-            MessageBox(hwnd, L"Failed to read value", L"Error", MB_OK);
+            MessageBox(hWindow, L"Failed to read value", L"Error", MB_OK);
             info.layoutName = std::wstring(L"Unknown Layout ") + info.layoutCode;
         } else {
             info.layoutName = std::wstring(data);
@@ -404,8 +388,9 @@ std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
     return matched;
 }
 
-void handleHotKey(std::vector<LayoutInfo> &layouts) {
-    if (layouts.size() <= 0) {
+void onHotKey()
+{
+    if (activeLayouts.size() <= 0) {
         return;
     }
 
@@ -418,19 +403,19 @@ void handleHotKey(std::vector<LayoutInfo> &layouts) {
 
     // find current layout
     int index = 0;
-    for (int i = 0; i != layouts.size(); i++) {
-        if (layouts[i].layoutCode == code) {
+    for (int i = 0; i != activeLayouts.size(); i++) {
+        if (activeLayouts[i].layoutCode == code) {
             index = i + 1;
             break;
         }
     }
 
-    if (index >= layouts.size()) {
+    if (index >= activeLayouts.size()) {
         index = 0;
     }
 
     // change to next layout
-    hkl = LoadKeyboardLayout(layouts[index].layoutCode.c_str(), KLF_ACTIVATE);
+    hkl = LoadKeyboardLayout(activeLayouts[index].layoutCode.c_str(), KLF_ACTIVATE);
     
     PostMessageW(
         current,
@@ -438,4 +423,91 @@ void handleHotKey(std::vector<LayoutInfo> &layouts) {
         0,
         (LPARAM) hkl
     );
+}
+
+bool onCommand(HWND windowHandle, int command)
+{
+    bool isListBox = windowHandle == hListBoxAvailable || windowHandle == hListBoxActive;
+    bool isDirectionalButton = windowHandle == hButtonRight || windowHandle == hButtonLeft;
+
+    if (isListBox || isDirectionalButton) {
+        HWND lb1 = hListBoxAvailable;
+        HWND lb2 = hListBoxActive;
+
+        HWND btn1 = hButtonRight;
+        HWND btn2 = hButtonLeft;
+
+        if (windowHandle == hListBoxActive || windowHandle == hButtonLeft) {
+            std::swap(lb1, lb2);
+            std::swap(btn1, btn2);
+        }
+
+        if (isListBox) {
+            // enable respective button if an item in listbox was selected
+            if (command == LBN_SELCHANGE) {
+                LRESULT data = SendMessageW(lb1, LB_GETCURSEL, 0, 0);
+                
+                SendMessageW(lb2, LB_SETCURSEL, -1, 0);
+
+                EnableWindow(btn2, false);
+                EnableWindow(btn1, data != LB_ERR);
+            } else if (command == LBN_SELCANCEL) {
+                EnableWindow(btn1, false);
+            }
+        } else if (isDirectionalButton && command == BN_CLICKED) {
+            // get layout name and code from selected listbox item
+            int index = SendMessageW(lb1, LB_GETCURSEL, 0, 0);
+            int length = SendMessageW(lb1, LB_GETTEXTLEN, index, 0);
+            wchar_t text[length];
+
+            SendMessageW(lb1, LB_GETTEXT, index, LPARAM(LPTSTR(text)));
+            LRESULT data = SendMessageW(lb1, LB_GETITEMDATA, index, 0);
+            
+            if (data == LB_ERR) {
+                MessageBoxW(hWindow, L"Error while trying to get item data", L"Error", MB_OK);
+            } else {
+                // move item to another listbox
+                std::wstring code = *((std::wstring*) data);
+
+                int pos = SendMessageW(lb2, LB_ADDSTRING, 0, (LPARAM) text);
+                SendMessageW(lb2, LB_SETITEMDATA, pos, (LPARAM) data);
+
+                SendMessageW(lb1, LB_DELETESTRING, index, 0);
+                SendMessageW(lb1, LB_SETCURSEL, -1, 0);
+
+                EnableWindow(btn1, false);
+                EnableWindow(btn2, false);
+
+                refreshActiveList();
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+void refreshActiveList()
+{
+    int count = SendMessageW(hListBoxActive, LB_GETCOUNT, 0, 0);
+
+    std::vector<LayoutInfo> newActiveList;
+
+    for (int i = 0; i < count; i++) {
+        int length = SendMessageW(hListBoxActive, LB_GETTEXTLEN, i, 0);
+        wchar_t text[length];
+
+        SendMessageW(hListBoxActive, LB_GETTEXT, i, LPARAM(LPTSTR(text)));
+        LRESULT data = SendMessageW(hListBoxActive, LB_GETITEMDATA, i, 0);
+        std::wstring code = *((std::wstring*) data);
+
+        LayoutInfo info;
+        info.layoutName = std::wstring(text);
+        info.layoutCode = code;
+
+        newActiveList.push_back(info);
+    }
+
+    activeLayouts = newActiveList;
 }
