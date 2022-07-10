@@ -4,7 +4,6 @@
 #endif
 
 #include <windows.h>
-#include <uxtheme.h>
 
 #include <string>
 #include <vector>
