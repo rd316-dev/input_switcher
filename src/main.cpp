@@ -14,6 +14,7 @@
 struct LayoutInfo {
     std::wstring layoutName;
     std::wstring layoutCode;
+    HKL layoutHandle;
 };
 
 struct Dimensions {
@@ -268,11 +269,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         MessageBox(hWindow, L"Couldn't find any keyboard layouts", L"Warning", MB_OK);
     }
 
-    // fill list with names of layouts
+    // fill list with layouts
     for (int i = 0; i < layouts.size(); i++) {
         int pos = (int) SendMessage(hListBoxActive, LB_ADDSTRING, 0, (LPARAM) layouts[i].layoutName.c_str());
 
-        SendMessage(hListBoxActive, LB_SETITEMDATA, pos, (LPARAM) &(layouts[i].layoutCode));
+        SendMessage(hListBoxActive, LB_SETITEMDATA, pos, (LPARAM) &layouts[i]); //&(layouts[i].layoutCode));
     }
     
     MSG msg = {};
@@ -317,6 +318,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
+// fetch all available keyboard layouts
+// return list of layout codes with additional leading zeroes
 std::vector<std::wstring> getAllAvailableLayouts()
 {
     int size = GetKeyboardLayoutList(0, nullptr);
@@ -333,7 +336,6 @@ std::vector<std::wstring> getAllAvailableLayouts()
         HKL current = list[i];
         
         uint64_t *data = reinterpret_cast<uint64_t*>(&current);
-        
         uint32_t code = *data >> 16;
 
         std::stringstream stream;
@@ -342,7 +344,7 @@ std::vector<std::wstring> getAllAvailableLayouts()
         
         std::wstring str(result.begin(), result.end());
 
-        // add leading zeroes to string
+        // add leading zeroes to code
         int length = str.length();
         for (int j = 0; j < 8 - length; j++) {
             str = L"0" + str;
@@ -354,10 +356,8 @@ std::vector<std::wstring> getAllAvailableLayouts()
     return codes;
 }
 
-/*
-https://docs.microsoft.com/en-us/windows/win32/sysinfo/registry-functions
-matches layout codes with their names in registry
-*/
+// match layout codes with their names in registry
+// return list of LayoutInfo object, storing layout name and code with leading zeroes
 std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
 {
     HKEY hkey;
@@ -370,27 +370,19 @@ std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
     std::vector<LayoutInfo> matched;
 
     if (result != ERROR_SUCCESS) {
-        MessageBox(hWindow, L"Error while attetmpting to open registry", L"Error", MB_OK);
+        MessageBox(hWindow, L"Couldn't open registry", L"Error", MB_OK);
         return matched;
     }
 
     for (std::vector<std::wstring>::const_iterator i = codes.begin(); i < codes.end(); i++) {
-        DWORD length = 255;
-
-        wchar_t data[length];
-
-        result = RegGetValueW(
-            hkey,
-            i->c_str(),
-            L"Layout Text",
-            RRF_RT_REG_SZ,
-            NULL,
-            data,
-            &length
-        );
-
         LayoutInfo info = {};
         info.layoutCode = *i;
+        info.layoutHandle = LoadKeyboardLayout(i->c_str(), KLF_ACTIVATE);
+
+        DWORD length = 255;
+        wchar_t data[length];
+
+        result = RegGetValueW(hkey, i->c_str(), L"Layout Text", RRF_RT_REG_SZ, NULL, data, &length);
 
         if (result != ERROR_SUCCESS) {
             MessageBox(hWindow, L"Failed to read value", L"Error", MB_OK);
@@ -405,24 +397,21 @@ std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
     return matched;
 }
 
+// handle hot key
 void onHotKey()
 {
     if (activeLayouts.size() <= 0) {
         return;
     }
-
-    HWND current = GetForegroundWindow();
     
     wchar_t code[8];
     GetKeyboardLayoutNameW(code);
     
-    HKL hkl;
-
     // find current layout
-    int index = 0;
-    for (int i = 0; i != activeLayouts.size(); i++) {
-        if (activeLayouts[i].layoutCode == code) {
-            index = i + 1;
+    int index;
+    for (index = 0; index < activeLayouts.size(); index++) {
+        if (activeLayouts[index].layoutCode == code) {
+            index++;
             break;
         }
     }
@@ -432,16 +421,13 @@ void onHotKey()
     }
 
     // change to next layout
-    hkl = LoadKeyboardLayout(activeLayouts[index].layoutCode.c_str(), KLF_ACTIVATE);
-    
-    PostMessageW(
-        current,
-        WM_INPUTLANGCHANGEREQUEST,
-        0,
-        (LPARAM) hkl
-    );
+    HWND currentWindow = GetForegroundWindow();
+    HKL keyboardLayout = activeLayouts[index].layoutHandle; //LoadKeyboardLayout(activeLayouts[index].layoutCode.c_str(), KLF_ACTIVATE);
+    PostMessageW(currentWindow, WM_INPUTLANGCHANGEREQUEST, 0, (LPARAM) keyboardLayout);
 }
 
+// handle gui events
+// return true if event was consumed
 bool onCommand(HWND windowHandle, int command)
 {
     bool isListBox = windowHandle == hListBoxAvailable || windowHandle == hListBoxActive;
@@ -461,6 +447,7 @@ bool onCommand(HWND windowHandle, int command)
 
         if (isListBox) {
             // enable respective button if an item in listbox was selected
+            // or disable it if item is no longer selected
             if (command == LBN_SELCHANGE) {
                 LRESULT data = SendMessageW(lb1, LB_GETCURSEL, 0, 0);
                 
@@ -474,18 +461,16 @@ bool onCommand(HWND windowHandle, int command)
         } else if (isDirectionalButton && command == BN_CLICKED) {
             // get layout name and code from selected listbox item
             int index = SendMessageW(lb1, LB_GETCURSEL, 0, 0);
-            int length = SendMessageW(lb1, LB_GETTEXTLEN, index, 0);
-            wchar_t text[length];
+            int length = SendMessageW(lb1, LB_GETTEXTLEN, index, 0) + 1;
+            wchar_t text[length] = {};
 
             SendMessageW(lb1, LB_GETTEXT, index, LPARAM(LPTSTR(text)));
             LRESULT data = SendMessageW(lb1, LB_GETITEMDATA, index, 0);
             
             if (data == LB_ERR) {
-                MessageBoxW(hWindow, L"Error while trying to get item data", L"Error", MB_OK);
+                MessageBoxW(hWindow, L"Couldn't get item data", L"Error", MB_OK);
             } else {
                 // move item to another listbox
-                std::wstring code = *((std::wstring*) data);
-
                 int pos = SendMessageW(lb2, LB_ADDSTRING, 0, (LPARAM) text);
                 SendMessageW(lb2, LB_SETITEMDATA, pos, (LPARAM) data);
 
@@ -505,6 +490,7 @@ bool onCommand(HWND windowHandle, int command)
     return false;
 }
 
+// fetch layout info from active layouts ListBox
 void refreshActiveList()
 {
     int count = SendMessageW(hListBoxActive, LB_GETCOUNT, 0, 0);
@@ -512,16 +498,12 @@ void refreshActiveList()
     std::vector<LayoutInfo> newActiveList;
 
     for (int i = 0; i < count; i++) {
-        int length = SendMessageW(hListBoxActive, LB_GETTEXTLEN, i, 0);
-        wchar_t text[length];
+        int length = SendMessageW(hListBoxActive, LB_GETTEXTLEN, i, 0) + 1;
+        wchar_t text[length] = {};
 
         SendMessageW(hListBoxActive, LB_GETTEXT, i, LPARAM(LPTSTR(text)));
         LRESULT data = SendMessageW(hListBoxActive, LB_GETITEMDATA, i, 0);
-        std::wstring code = *((std::wstring*) data);
-
-        LayoutInfo info;
-        info.layoutName = std::wstring(text);
-        info.layoutCode = code;
+        LayoutInfo info = *((LayoutInfo*) data);
 
         newActiveList.push_back(info);
     }
