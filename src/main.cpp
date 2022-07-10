@@ -273,7 +273,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     for (int i = 0; i < layouts.size(); i++) {
         int pos = (int) SendMessage(hListBoxActive, LB_ADDSTRING, 0, (LPARAM) layouts[i].layoutName.c_str());
 
-        SendMessage(hListBoxActive, LB_SETITEMDATA, pos, (LPARAM) &layouts[i]); //&(layouts[i].layoutCode));
+        SendMessage(hListBoxActive, LB_SETITEMDATA, pos, (LPARAM) &layouts[i]);
     }
     
     MSG msg = {};
@@ -422,7 +422,7 @@ void onHotKey()
 
     // change to next layout
     HWND currentWindow = GetForegroundWindow();
-    HKL keyboardLayout = activeLayouts[index].layoutHandle; //LoadKeyboardLayout(activeLayouts[index].layoutCode.c_str(), KLF_ACTIVATE);
+    HKL keyboardLayout = activeLayouts[index].layoutHandle;
     PostMessageW(currentWindow, WM_INPUTLANGCHANGEREQUEST, 0, (LPARAM) keyboardLayout);
 }
 
