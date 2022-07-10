@@ -377,7 +377,7 @@ std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
     for (std::vector<std::wstring>::const_iterator i = codes.begin(); i < codes.end(); i++) {
         LayoutInfo info = {};
         info.layoutCode = *i;
-        info.layoutHandle = LoadKeyboardLayout(i->c_str(), KLF_ACTIVATE);
+        info.layoutHandle = LoadKeyboardLayout(i->c_str(), KLF_NOTELLSHELL);
 
         DWORD length = 255;
         wchar_t data[length];
