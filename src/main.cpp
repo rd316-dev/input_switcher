@@ -13,7 +13,6 @@
 struct LayoutInfo {
     std::wstring layoutName;
     std::wstring layoutCode;
-    HKL layoutHandle;
 };
 
 struct Dimensions {
@@ -375,7 +374,6 @@ std::vector<LayoutInfo> matchLayoutData(std::vector<std::wstring> &codes)
     for (std::vector<std::wstring>::const_iterator i = codes.begin(); i < codes.end(); i++) {
         LayoutInfo info = {};
         info.layoutCode = *i;
-        info.layoutHandle = LoadKeyboardLayout(i->c_str(), KLF_NOTELLSHELL);
 
         DWORD length = 255;
         wchar_t data[length];
@@ -420,7 +418,7 @@ void onHotKey()
 
     // change to next layout
     HWND currentWindow = GetForegroundWindow();
-    HKL keyboardLayout = activeLayouts[index].layoutHandle;
+    HKL keyboardLayout = LoadKeyboardLayout(activeLayouts[index].layoutCode.c_str(), KLF_ACTIVATE);
     PostMessageW(currentWindow, WM_INPUTLANGCHANGEREQUEST, 0, (LPARAM) keyboardLayout);
 }
 
