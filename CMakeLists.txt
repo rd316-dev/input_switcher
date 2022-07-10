@@ -9,4 +9,4 @@ set(SOURCE_FILES
 add_executable(input_switcher WIN32 ${SOURCE_FILES})
 
 target_include_directories(input_switcher PRIVATE "src/")
-target_link_libraries(input_switcher "uxtheme.lib" "-static-libgcc" "-static-libstdc++")
+target_link_options(input_switcher PRIVATE "-static-libgcc" "-static-libstdc++" "-s")
