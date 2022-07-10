@@ -59,18 +59,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     
     RegisterClass(&wc);
 
+    // get default caption font
     NONCLIENTMETRICSW metrics;
     metrics.cbSize = sizeof(NONCLIENTMETRICS);
 
     BOOL result = SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), PVOID(&metrics), 0);
-
     if (result == FALSE) {
         MessageBox(NULL, L"Couldn't get nonclient metrics", L"Error", MB_OK);
         return -1;
     }
 
     LOGFONTW captionFontData = metrics.lfCaptionFont;
-
     HFONT captionFont = CreateFontIndirectW(&captionFontData);
     
     // place window at the center of screen
@@ -87,7 +86,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         0,
         CLASS_NAME,
         L"Input Switcher",
-        WS_OVERLAPPEDWINDOW,
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         
         windowDimensions.startX, windowDimensions.startY, 
         windowDimensions.width, windowDimensions.height,
